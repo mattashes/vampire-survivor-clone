@@ -1,0 +1,58 @@
+.skill-button {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    width: 60px;
+    height: 60px;
+    background: rgba(0, 0, 0, 0.8);
+    border: 3px solid #4CAF50;
+    border-radius: 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-family: Arial, sans-serif;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    overflow: hidden;
+    box-shadow: 0 0 10px rgba(76, 175, 80, 0.3);
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.skill-key {
+    z-index: 2;
+    text-shadow: 0 0 8px rgba(76, 175, 80, 0.8);
+}
+
+.cooldown-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: var(--cooldown-percent, 0%);
+    background: rgba(0, 0, 0, 0.85);
+    transition: height 0.1s linear;
+}
+
+.skill-button:hover {
+    border-color: #45a049;
+    box-shadow: 0 0 15px rgba(76, 175, 80, 0.5);
+}
+
+.skill-button.on-cooldown {
+    border-color: #666;
+    cursor: not-allowed;
+    animation: pulse 2s infinite;
+}
+
+.skill-button.on-cooldown .skill-key {
+    opacity: 0.6;
+    text-shadow: none;
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 5px rgba(102, 102, 102, 0.3); }
+    50% { box-shadow: 0 0 15px rgba(102, 102, 102, 0.5); }
+    100% { box-shadow: 0 0 5px rgba(102, 102, 102, 0.3); }
+}
