@@ -25,6 +25,7 @@ export class GameManager {
     // Core game properties
     get isRunning() { return this.gameCore.isRunning; }
     get isPaused() { return this.gameCore.isPaused; }
+    set isPaused(value) { this.gameCore.isPaused = value; }
     get debug() { return this.gameCore.debug; }
     get gameTime() { return this.gameCore.gameTime; }
     get fps() { return this.gameCore.fps; }
@@ -130,9 +131,9 @@ export class GameManager {
 
         const killsNeeded = this.getKillsForNextLevel(hero.level);
         if (this.killCount >= killsNeeded) {
-            hero.level++;
+            hero.levelUp(); // This will set needsLevelUp flag
             this.killCount = 0;
-            this.upgradeSystem.showUpgradeMenu();
+            // The upgrade menu will be shown by the upgrade system when it detects needsLevelUp
         }
     }
 

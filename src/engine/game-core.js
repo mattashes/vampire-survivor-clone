@@ -5,7 +5,7 @@ export class GameCore {
     constructor(game) {
         this.game = game;
         this.isRunning = false;
-        this.isPaused = false;
+        this._isPaused = false;
         this.debug = GAME_CONFIG.debug;
         this.gameTime = 0;
         this.lastTime = performance.now();
@@ -32,14 +32,25 @@ export class GameCore {
     }
 
     pause() {
-        this.isPaused = true;
+        this._isPaused = true;
         logDebug('Game paused');
     }
 
     resume() {
-        this.isPaused = false;
+        this._isPaused = false;
         this.lastTime = performance.now();
         logDebug('Game resumed');
+    }
+
+    get isPaused() {
+        return this._isPaused;
+    }
+
+    set isPaused(value) {
+        this._isPaused = value;
+        if (this.debug) {
+            logDebug(`Game ${value ? 'paused' : 'resumed'}`);
+        }
     }
 
     updateFPS(currentTime) {
@@ -71,7 +82,11 @@ export class GameCore {
     }
 
     getKillsForNextLevel(currentLevel) {
-        return 100;
+        // Base requirement is 5 kills for first level
+        const baseKills = 5;
+        // Each level requires more kills, scaling quadratically but capped
+        const scaleFactor = Math.min(currentLevel * 0.5, 5); // Cap the scaling at 5x
+        return Math.floor(baseKills * scaleFactor);
     }
 
     gameOver() {
