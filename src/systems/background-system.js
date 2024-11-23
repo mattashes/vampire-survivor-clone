@@ -6,7 +6,7 @@ export class BackgroundSystem {
         this.height = game.canvas.height;
         
         // Grid settings
-        this.gridSize = 50;
+        this.gridSize = 100; // Increased for better visibility when zoomed out
         this.gridOpacity = 0.15;
         
         // Animation settings
@@ -27,7 +27,7 @@ export class BackgroundSystem {
 
     createPatterns() {
         // Create dot pattern
-        const dotSize = 2;
+        const dotSize = 3; // Increased for better visibility
         const dotCanvas = document.createElement('canvas');
         dotCanvas.width = this.gridSize;
         dotCanvas.height = this.gridSize;
@@ -44,28 +44,48 @@ export class BackgroundSystem {
     update(deltaTime) {
         // Update animation time
         this.time += deltaTime * this.waveSpeed;
+        
+        // Update dimensions based on current zoom level
+        const zoom = this.game.terrainSystem.zoom;
+        this.width = this.game.canvas.width / zoom;
+        this.height = this.game.canvas.height / zoom;
     }
 
     draw() {
-        this.drawBackground();
-        this.drawGrid();
-        this.drawTerrainEffects();
+        const camera = this.game.terrainSystem.camera;
+        const zoom = this.game.terrainSystem.zoom;
+        
+        // Calculate visible area in world coordinates
+        const visibleLeft = camera.x;
+        const visibleTop = camera.y;
+        const visibleRight = visibleLeft + (this.game.canvas.width / zoom);
+        const visibleBottom = visibleTop + (this.game.canvas.height / zoom);
+        
+        // Align grid to camera position
+        const startX = Math.floor(visibleLeft / this.gridSize) * this.gridSize;
+        const startY = Math.floor(visibleTop / this.gridSize) * this.gridSize;
+        const endX = Math.ceil(visibleRight / this.gridSize) * this.gridSize;
+        const endY = Math.ceil(visibleBottom / this.gridSize) * this.gridSize;
+
+        this.drawBackground(visibleLeft, visibleTop, visibleRight - visibleLeft, visibleBottom - visibleTop);
+        this.drawGrid(startX, startY, endX, endY);
+        this.drawTerrainEffects(startX, startY, endX, endY);
     }
 
-    drawBackground() {
+    drawBackground(x, y, width, height) {
         // Create gradient background
         const gradient = this.ctx.createRadialGradient(
-            this.width / 2, this.height / 2, 0,
-            this.width / 2, this.height / 2, this.width * 0.8
+            x + width / 2, y + height / 2, 0,
+            x + width / 2, y + height / 2, width * 0.8
         );
         gradient.addColorStop(0, this.colors.background[0]);
         gradient.addColorStop(1, this.colors.background[1]);
         
         this.ctx.fillStyle = gradient;
-        this.ctx.fillRect(0, 0, this.width, this.height);
+        this.ctx.fillRect(x, y, width, height);
     }
 
-    drawGrid() {
+    drawGrid(startX, startY, endX, endY) {
         // Save context state
         this.ctx.save();
         
@@ -75,30 +95,35 @@ export class BackgroundSystem {
         this.ctx.globalAlpha = this.gridOpacity;
         
         // Draw vertical lines
-        for (let x = 0; x < this.width; x += this.gridSize) {
+        for (let x = startX; x <= endX; x += this.gridSize) {
             this.ctx.beginPath();
-            this.ctx.moveTo(x, 0);
-            this.ctx.lineTo(x, this.height);
+            this.ctx.moveTo(x, startY);
+            this.ctx.lineTo(x, endY);
             this.ctx.stroke();
         }
         
         // Draw horizontal lines
-        for (let y = 0; y < this.height; y += this.gridSize) {
+        for (let y = startY; y <= endY; y += this.gridSize) {
             this.ctx.beginPath();
-            this.ctx.moveTo(0, y);
-            this.ctx.lineTo(this.width, y);
+            this.ctx.moveTo(startX, y);
+            this.ctx.lineTo(endX, y);
             this.ctx.stroke();
         }
         
         // Draw grid intersection points
-        this.ctx.fillStyle = this.patterns.get('dots');
-        this.ctx.fillRect(0, 0, this.width, this.height);
+        for (let x = startX; x <= endX; x += this.gridSize) {
+            for (let y = startY; y <= endY; y += this.gridSize) {
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, 2, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
+        }
         
         // Restore context state
         this.ctx.restore();
     }
 
-    drawTerrainEffects() {
+    drawTerrainEffects(startX, startY, endX, endY) {
         // Save context state
         this.ctx.save();
         
@@ -107,23 +132,23 @@ export class BackgroundSystem {
         this.ctx.strokeStyle = this.colors.highlights;
         this.ctx.lineWidth = 2;
 
-        // Draw simple diagonal lines
-        const spacing = this.height / 6;
+        // Draw animated diagonal lines
+        const spacing = (endY - startY) / 6;
         
         for (let i = 0; i < 5; i++) {
-            const yPos = spacing * (i + 1);
-            const offset = Math.sin(this.time) * 20;
+            const yPos = startY + spacing * (i + 1);
+            const offset = Math.sin(this.time + i * 0.5) * 20;
             
             this.ctx.beginPath();
-            this.ctx.moveTo(0, yPos + offset);
-            this.ctx.lineTo(this.width, yPos - offset);
+            this.ctx.moveTo(startX, yPos + offset);
+            this.ctx.lineTo(endX, yPos - offset);
             this.ctx.stroke();
         }
 
-        // Draw some circles for additional effect
+        // Draw animated circles
         for (let i = 0; i < 3; i++) {
-            const x = this.width * (0.25 + i * 0.25);
-            const y = this.height * 0.5;
+            const x = startX + (endX - startX) * (0.25 + i * 0.25);
+            const y = startY + (endY - startY) * 0.5;
             const radius = 50 + Math.sin(this.time + i) * 20;
             
             this.ctx.beginPath();

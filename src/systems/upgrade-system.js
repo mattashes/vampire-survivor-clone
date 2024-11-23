@@ -207,7 +207,7 @@ export class UpgradeSystem {
                 name: 'Weapon Mastery',
                 description: 'Reduce weapon cooldowns by 10%',
                 apply: (hero) => {
-                    for (const weapon of hero.weapons) {
+                    for (const weapon of hero.combat.weapons) {
                         weapon.cooldown *= 0.9;
                     }
                 }
@@ -216,7 +216,7 @@ export class UpgradeSystem {
                 name: 'Projectile Size',
                 description: 'Increase projectile size by 20%',
                 apply: (hero) => {
-                    for (const weapon of hero.weapons) {
+                    for (const weapon of hero.combat.weapons) {
                         if (weapon.projectileRadius) {
                             weapon.projectileRadius *= 1.2;
                         }
@@ -229,7 +229,7 @@ export class UpgradeSystem {
                 description: 'Add a shotgun that fires multiple projectiles in a spread pattern',
                 apply: (hero) => {
                     const shotgun = new Shotgun(hero);
-                    hero.weapons.add(shotgun);
+                    hero.combat.weapons.add(shotgun);
                 },
                 isWeapon: true,
                 weaponClass: Shotgun
@@ -239,7 +239,7 @@ export class UpgradeSystem {
                 description: 'Add a rapid-fire weapon with high rate of fire',
                 apply: (hero) => {
                     const miniGun = new MiniGun(hero);
-                    hero.weapons.add(miniGun);
+                    hero.combat.weapons.add(miniGun);
                 },
                 isWeapon: true,
                 weaponClass: MiniGun
@@ -249,7 +249,7 @@ export class UpgradeSystem {
                 description: 'Add an energy weapon that fires rapid beams with visual effects',
                 apply: (hero) => {
                     const beam = new EnergyBeam(hero);
-                    hero.weapons.add(beam);
+                    hero.combat.weapons.add(beam);
                 },
                 isWeapon: true,
                 weaponClass: EnergyBeam
@@ -259,7 +259,7 @@ export class UpgradeSystem {
                 description: 'Add a cannon that fires explosive projectiles for area damage',
                 apply: (hero) => {
                     const cannon = new PulseCannon(hero);
-                    hero.weapons.add(cannon);
+                    hero.combat.weapons.add(cannon);
                 },
                 isWeapon: true,
                 weaponClass: PulseCannon
@@ -270,7 +270,7 @@ export class UpgradeSystem {
         const availableUpgrades = allUpgrades.filter(upgrade => {
             if (!upgrade.isWeapon) return true;
             // Check if hero already has this weapon type
-            const heroWeapons = Array.from(this.game.entities.hero.weapons);
+            const heroWeapons = Array.from(this.game.entities.hero.combat.weapons);
             return !heroWeapons.some(w => upgrade.weaponClass && w instanceof upgrade.weaponClass);
         });
 

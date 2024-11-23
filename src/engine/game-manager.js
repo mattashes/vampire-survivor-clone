@@ -2,10 +2,12 @@ import { BackgroundSystem } from '../systems/background-system.js';
 import { ParticleSystem } from '../systems/particle-system.js';
 import { EnemySpawner } from '../systems/enemy-spawner.js';
 import { UpgradeSystem } from '../systems/upgrade-system.js';
+import { TerrainSystem } from '../systems/terrain-system.js';
 import { GameCore } from './game-core.js';
 import { GameCanvas } from './game-canvas.js';
 import { GameEntities } from './game-entities.js';
 import { GameUI } from './game-ui.js';
+import { WeaponDebugUI } from '../debug/weapon-debug.js';
 
 export class GameManager {
     constructor() {
@@ -16,10 +18,14 @@ export class GameManager {
         this.gameUI = new GameUI(this);
 
         // Initialize systems
+        this.terrainSystem = new TerrainSystem(this);
         this.backgroundSystem = new BackgroundSystem(this);
         this.particleSystem = new ParticleSystem(this);
         this.enemySpawner = new EnemySpawner(this);
         this.upgradeSystem = new UpgradeSystem(this);
+
+        // Initialize debug UI
+        this.weaponDebugUI = new WeaponDebugUI(this);
     }
 
     // Core game properties
@@ -68,21 +74,50 @@ export class GameManager {
         this.gameCanvas.updateScreenShake(deltaTime);
 
         // Update systems
+        this.terrainSystem?.update(deltaTime);
         this.backgroundSystem?.update(deltaTime);
         this.enemySpawner?.update(deltaTime);
         this.particleSystem?.update(deltaTime);
         this.upgradeSystem?.update(deltaTime);
 
-        // Update entities
-        this.gameEntities.update(deltaTime);
+        // Update entities with collision detection
+        const entities = [...this.entities.projectiles, ...this.entities.enemies];
+        if (this.entities.hero) {
+            entities.push(this.entities.hero);
+        }
+
+        for (const entity of entities) {
+            const oldX = entity.x;
+            const oldY = entity.y;
+            
+            // Update entity position
+            entity.update(deltaTime);
+            
+            // Check collision with terrain
+            if (this.terrainSystem.checkCollision(entity)) {
+                // If collision occurred, revert position
+                entity.x = oldX;
+                entity.y = oldY;
+            }
+        }
     }
 
     // Draw method
     draw() {
         this.gameCanvas.beginDraw();
 
-        // Draw background
+        // Apply terrain system transform
+        this.ctx.save();
+        const zoom = this.terrainSystem.zoom;
+        this.ctx.scale(zoom, zoom);
+        this.ctx.translate(
+            -this.terrainSystem.camera.x,
+            -this.terrainSystem.camera.y
+        );
+
+        // Draw background and terrain
         this.backgroundSystem?.draw(this.ctx);
+        this.terrainSystem?.draw();
 
         // Draw entities
         this.gameEntities.draw(this.ctx);
@@ -90,7 +125,10 @@ export class GameManager {
         // Draw particles
         this.particleSystem?.draw(this.ctx);
 
-        // Draw UI
+        // Restore transform before drawing UI
+        this.ctx.restore();
+
+        // Draw UI (not affected by camera)
         this.gameUI.draw(this.ctx);
 
         this.gameCanvas.endDraw();

@@ -97,26 +97,37 @@ export class EnemySpawner {
     }
 
     getSpawnPosition() {
-        const margin = 50; // Spawn margin from edges
+        const margin = 100; // Increased spawn margin for world coordinates
+        const zoom = this.game.terrainSystem.zoom;
+        const camera = this.game.terrainSystem.camera;
+        
+        // Get visible area in world coordinates
+        const visibleWidth = this.game.canvas.width / zoom;
+        const visibleHeight = this.game.canvas.height / zoom;
+        const worldLeft = camera.x;
+        const worldTop = camera.y;
+        const worldRight = worldLeft + visibleWidth;
+        const worldBottom = worldTop + visibleHeight;
+        
         const side = Math.floor(Math.random() * 4); // 0: top, 1: right, 2: bottom, 3: left
         
         let x, y;
         switch(side) {
             case 0: // top
-                x = Math.random() * this.game.canvas.width;
-                y = -margin;
+                x = worldLeft + Math.random() * visibleWidth;
+                y = worldTop - margin;
                 break;
             case 1: // right
-                x = this.game.canvas.width + margin;
-                y = Math.random() * this.game.canvas.height;
+                x = worldRight + margin;
+                y = worldTop + Math.random() * visibleHeight;
                 break;
             case 2: // bottom
-                x = Math.random() * this.game.canvas.width;
-                y = this.game.canvas.height + margin;
+                x = worldLeft + Math.random() * visibleWidth;
+                y = worldBottom + margin;
                 break;
             case 3: // left
-                x = -margin;
-                y = Math.random() * this.game.canvas.height;
+                x = worldLeft - margin;
+                y = worldTop + Math.random() * visibleHeight;
                 break;
         }
         

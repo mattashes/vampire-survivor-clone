@@ -41,10 +41,13 @@ export class WeaponDebugUI {
             button.style.cursor = 'pointer';
 
             button.addEventListener('click', () => {
-                const hero = this.game.entities.hero;  // Get hero from game.entities
-                const newWeapon = new weapon.class(hero);
-                hero.weapons.add(newWeapon);
-                console.log(`Equipped ${weapon.name}`);
+                const hero = this.game.entities.hero;
+                if (hero && hero.combat) {
+                    hero.combat.addWeapon(weapon.class);
+                    console.log(`Equipped ${weapon.name}`);
+                } else {
+                    console.warn('Hero or hero.combat not found');
+                }
             });
 
             button.addEventListener('mouseover', () => {
@@ -57,6 +60,36 @@ export class WeaponDebugUI {
 
             container.appendChild(button);
         });
+
+        // Add a clear weapons button
+        const clearButton = document.createElement('button');
+        clearButton.textContent = 'Clear Weapons';
+        clearButton.style.display = 'block';
+        clearButton.style.margin = '10px 0 5px';
+        clearButton.style.padding = '5px 10px';
+        clearButton.style.backgroundColor = '#f44336';
+        clearButton.style.color = 'white';
+        clearButton.style.border = 'none';
+        clearButton.style.borderRadius = '3px';
+        clearButton.style.cursor = 'pointer';
+
+        clearButton.addEventListener('click', () => {
+            const hero = this.game.entities.hero;
+            if (hero && hero.combat && hero.combat.weapons) {
+                hero.combat.weapons.clear();
+                console.log('Cleared all weapons');
+            }
+        });
+
+        clearButton.addEventListener('mouseover', () => {
+            clearButton.style.backgroundColor = '#d32f2f';
+        });
+
+        clearButton.addEventListener('mouseout', () => {
+            clearButton.style.backgroundColor = '#f44336';
+        });
+
+        container.appendChild(clearButton);
 
         document.body.appendChild(container);
     }

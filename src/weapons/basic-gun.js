@@ -5,12 +5,12 @@ import { logDebug } from '../config.js';
 export class BasicGun extends BaseWeapon {
     constructor(owner) {
         super(owner);
-        this.fireRate = 2; // Restored to original 2 shots per second
-        this.damage = 391; // Increased from 25 to 391
-        this.projectileSpeed = 500; // Increased from 400 to 500
-        this.projectileSize = 6; // Kept at 6
-        this.projectileLifetime = 0.3; // Decreased from 1.5 to 0.3 seconds
-        this.projectileColor = '#ffff00'; // Bright yellow
+        this.fireRate = 2;
+        this.damage = 391;
+        this.projectileSpeed = 500;
+        this.projectileSize = 6;
+        this.projectileLifetime = 0.3;
+        this.projectileColor = '#ffff00';
         this.lastFireTime = 0;
         this.cooldown = 1 / this.fireRate;
     }
@@ -18,9 +18,9 @@ export class BasicGun extends BaseWeapon {
     fire(target) {
         if (!this.owner) return;
 
-        // Calculate direction to enemy
-        const dx = target.x - this.owner.x;
-        const dy = target.y - this.owner.y;
+        // Calculate direction using world coordinates
+        const dx = target.worldX - this.owner.worldX;
+        const dy = target.worldY - this.owner.worldY;
         const length = Math.sqrt(dx * dx + dy * dy);
         
         if (length === 0) return;
@@ -31,10 +31,10 @@ export class BasicGun extends BaseWeapon {
         const vx = normalizedDx * this.projectileSpeed;
         const vy = normalizedDy * this.projectileSpeed;
 
-        // Create projectile with new constructor format
+        // Create projectile with world coordinates
         const projectile = new Projectile(
-            this.owner.x,
-            this.owner.y,
+            this.owner.worldX,
+            this.owner.worldY,
             vx,
             vy,
             this.projectileSize,
@@ -53,7 +53,8 @@ export class BasicGun extends BaseWeapon {
     update(deltaTime) {
         const now = performance.now() / 1000;
         if (now - this.lastFireTime >= this.cooldown) {
-            const closestEnemy = this.owner?.findClosestEnemy();
+            // Use hero.ai to find closest enemy
+            const closestEnemy = this.owner?.ai?.findClosestEnemy();
             if (closestEnemy) {
                 this.fire(closestEnemy);
                 this.lastFireTime = now;

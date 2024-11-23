@@ -82,11 +82,15 @@ export class GameCore {
     }
 
     getKillsForNextLevel(currentLevel) {
-        // Base requirement is 5 kills for first level
-        const baseKills = 5;
-        // Each level requires more kills, scaling quadratically but capped
-        const scaleFactor = Math.min(currentLevel * 0.5, 5); // Cap the scaling at 5x
-        return Math.floor(baseKills * scaleFactor);
+        // First level requires 50 kills
+        if (currentLevel === 1) return 50;
+        
+        // Second level requires 150 kills
+        if (currentLevel === 2) return 150;
+        
+        // For levels 3 and beyond, increase by 100 kills per level
+        // This means level 3 needs 250, level 4 needs 350, etc.
+        return 150 + ((currentLevel - 2) * 100);
     }
 
     gameOver() {
