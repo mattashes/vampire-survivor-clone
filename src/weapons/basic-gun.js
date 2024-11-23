@@ -1,76 +1,79 @@
-import { BaseWeapon } from './base-weapon.js';
+import { Weapon } from './weapon.js';
 import { Projectile } from './projectile.js';
-import { logDebug } from '../config.js';
+import { GAME_CONFIG } from '../config.js';
 
-export class BasicGun extends BaseWeapon {
+export class BasicGun extends Weapon {
     constructor(owner) {
-        super(owner);
-        this.fireRate = 2;
-        this.damage = 391;
-        this.projectileSpeed = 500;
-        this.projectileSize = 6;
-        this.projectileLifetime = 0.3;
-        this.projectileColor = '#ffff00';
-        this.lastFireTime = 0;
-        this.cooldown = 1 / this.fireRate;
+        super({
+            damage: 25,
+            fireRate: 2,
+            projectileSpeed: 600,
+            projectileLifetime: 0.8,
+            projectileSize: 5,
+            projectileColor: '#ffff00'
+        });
+        this.setOwner(owner);
+        this.debug = GAME_CONFIG.debug;
     }
 
-    fire(target) {
-        if (!this.owner) return;
+    canFire() {
+        if (!this.owner) return false;
+        const now = performance.now() / 1000;
+        return now - this.lastFireTime >= this.cooldown;
+    }
 
-        // Calculate direction using world coordinates
-        const dx = target.worldX - this.owner.worldX;
-        const dy = target.worldY - this.owner.worldY;
-        const length = Math.sqrt(dx * dx + dy * dy);
-        
-        if (length === 0) return;
+    fire(angle) {
+        if (!this.owner || typeof this.owner.x !== 'number' || typeof this.owner.y !== 'number') {
+            console.warn('Invalid owner position for basic gun fire');
+            return;
+        }
 
-        // Normalize direction and calculate velocity
-        const normalizedDx = dx / length;
-        const normalizedDy = dy / length;
-        const vx = normalizedDx * this.projectileSpeed;
-        const vy = normalizedDy * this.projectileSpeed;
+        // If no angle provided, try to find nearest enemy
+        if (typeof angle !== 'number') {
+            const enemies = this.owner.game?.gameEntities?.entities?.enemies;
+            if (!enemies || enemies.size === 0) return;
 
-        // Create projectile with world coordinates
-        const projectile = new Projectile(
-            this.owner.worldX,
-            this.owner.worldY,
-            vx,
-            vy,
-            this.projectileSize,
-            this.damage,
-            this.projectileLifetime,
-            this.projectileColor,
-            this.owner
-        );
+            const target = this.findClosestEnemy(Array.from(enemies));
+            if (!target) return;
 
-        // Add to game entities
-        if (this.owner.game.entities && this.owner.game.entities.projectiles) {
-            this.owner.game.entities.projectiles.add(projectile);
+            angle = Math.atan2(
+                target.y - this.owner.y,
+                target.x - this.owner.x
+            );
+        }
+
+        if (!this.canFire()) return;
+
+        try {
+            const projectile = new Projectile({
+                x: this.owner.x,
+                y: this.owner.y,
+                angle: angle,
+                speed: this.projectileSpeed,
+                lifetime: this.projectileLifetime,
+                size: this.projectileSize,
+                color: this.projectileColor,
+                damage: this.damage,
+                weapon: this
+            });
+
+            if (this.owner.game?.gameEntities) {
+                this.owner.game.gameEntities.addProjectile(projectile);
+                this.lastFireTime = performance.now() / 1000;
+                if (this.debug) {
+                    console.log(`BasicGun fired projectile at angle ${angle.toFixed(2)}`);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to create basic gun projectile:', error);
         }
     }
 
     update(deltaTime) {
-        const now = performance.now() / 1000;
-        if (now - this.lastFireTime >= this.cooldown) {
-            // Use hero.ai to find closest enemy
-            const closestEnemy = this.owner?.ai?.findClosestEnemy();
-            if (closestEnemy) {
-                this.fire(closestEnemy);
-                this.lastFireTime = now;
-            }
-        }
+        // Weapon logic update if needed
     }
 
     draw(ctx) {
-        // Basic gun has no visual representation when not firing
-    }
-
-    upgrade() {
-        super.upgrade();
-        // Additional basic gun specific upgrades
-        this.fireRate *= 1.2;
-        this.damage *= 1.3;
-        this.projectileSpeed *= 1.1;
+        // Weapon visualization if needed
     }
 }

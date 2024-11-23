@@ -1,6 +1,5 @@
-import Entity from '../entity.js';
+import { Entity } from '../entity.js';
 import { GAME_CONFIG, logDebug } from '../../config.js';
-import { HeroAI } from './hero-ai.js';
 import { HeroCombat } from './hero-combat.js';
 import { HeroDash } from './hero-dash.js';
 
@@ -8,6 +7,38 @@ export class Hero extends Entity {
     constructor(x, y, game) {
         super(x, y, GAME_CONFIG.hero.radius, GAME_CONFIG.hero.color, GAME_CONFIG.hero.maxSpeed, game);
         
+        // Ensure game reference is set
+        if (!game) {
+            throw new Error('Game reference is required for Hero initialization');
+        }
+        this.game = game;
+
+        // Store initial position
+        this.initialX = x;
+        this.initialY = y;
+
+        // Use the shared input manager
+        this.input = game.inputManager;
+
+        // Initialize components with proper game reference
+        this.combat = new HeroCombat(this);
+        this.dash = new HeroDash(this);
+        
+        if (this.game.debug) {
+            logDebug('Hero initialized with game reference');
+        }
+    }
+
+    initializeReferences() {
+        // Initialize references after entity system is ready
+        if (this.game?.gameEntities?.entities) {
+            this.enemies = this.game.gameEntities.entities.enemies;
+        } else if (this.game.debug) {
+            logDebug('No game or enemies reference in hero');
+        }
+    }
+
+    initializeProperties() {
         // Core properties
         this.baseRadius = GAME_CONFIG.hero.radius;
         this.radius = this.baseRadius;
@@ -17,17 +48,12 @@ export class Hero extends Entity {
         this.speed = this.maxSpeed;
         this.level = 1;
         
-        // Kill system
-        this.kills = 0;
-        this.killsToNextLevel = 100; // First level up at 100 kills
-        this.killThresholds = [
-            100,  // Level 2
-            250,  // Level 3
-            400,  // Level 4
-            600,  // Level 5
-            900,  // Level 6
-            1200  // Level 7
-        ];
+        // Power state
+        this.powerState = {
+            scale: 1,
+            duration: 0,
+            active: false
+        };
         
         // Health system
         this.maxHealth = GAME_CONFIG.hero.maxHealth;
@@ -37,83 +63,48 @@ export class Hero extends Entity {
         this.regenCooldown = GAME_CONFIG.hero.regenCooldown;
         
         // World coordinates
-        this.worldX = x;
-        this.worldY = y;
-        
-        // Power state
-        this.powerState = {
-            scale: 1,
-            growing: false,
-            charged: false,
-            exhausted: false
-        };
-        
-        // Force system
-        this.forceX = 0;
-        this.forceY = 0;
-        this.forceDuration = 0;
+        this.worldX = this.initialX;
+        this.worldY = this.initialY;
         
         // Debug
         this.debug = GAME_CONFIG.debug;
-        
-        // Initialize components
-        this.ai = new HeroAI(this);
-        this.combat = new HeroCombat(this);
-        this.dash = new HeroDash(this);
     }
 
     update(deltaTime) {
-        // Store old world position for collision check
-        const oldWorldX = this.worldX;
-        const oldWorldY = this.worldY;
+        if (!this.game) {
+            if (this.debug) logDebug('No game reference in hero');
+            return;
+        }
+
+        // Get mouse position
+        const mousePos = this.input.getMousePosition();
+        
+        // Convert mouse position to canvas coordinates
+        const rect = this.game.canvas.getBoundingClientRect();
+        const canvasX = mousePos.x - rect.left;
+        const canvasY = mousePos.y - rect.top;
+
+        // Calculate direction to mouse
+        const dx = canvasX - this.x;
+        const dy = canvasY - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // Move towards mouse if not too close
+        if (distance > 5) {
+            const moveX = (dx / distance) * this.speed * deltaTime;
+            const moveY = (dy / distance) * this.speed * deltaTime;
+            
+            this.x += moveX;
+            this.y += moveY;
+        }
 
         // Update components
-        this.ai.update(deltaTime);
         this.combat.update(deltaTime);
         this.dash.update(deltaTime);
 
-        // Update world position based on velocity
-        if (!this.dash.isDashing) {
-            this.worldX += this.dx * this.speed * deltaTime;
-            this.worldY += this.dy * this.speed * deltaTime;
-        }
-
-        // Check collision with terrain
-        if (this.game.terrainSystem && this.game.terrainSystem.checkCollision(this)) {
-            // If collision occurred, revert position
-            this.worldX = oldWorldX;
-            this.worldY = oldWorldY;
-        }
-
-        // Update screen position based on camera
-        const camera = this.game.terrainSystem.camera;
-        const zoom = this.game.terrainSystem.zoom;
-        this.x = (this.worldX - camera.x) * zoom;
-        this.y = (this.worldY - camera.y) * zoom;
-
-        // Health regeneration
-        const currentTime = performance.now();
-        if (currentTime - this.lastRegenTime > this.regenCooldown) {
-            this.heal(this.regeneration);
-            this.lastRegenTime = currentTime;
-            if (this.debug) {
-                logDebug(`Hero regenerated ${this.regeneration} health`);
-            }
-        }
-
-        // Apply force if active
-        if (this.forceDuration > 0) {
-            this.worldX += this.forceX * deltaTime;
-            this.worldY += this.forceY * deltaTime;
-            this.forceDuration -= deltaTime;
-            
-            if (this.forceDuration <= 0) {
-                this.forceX = 0;
-                this.forceY = 0;
-            }
-        }
-
-        super.update(deltaTime);
+        // Keep hero within bounds
+        this.x = Math.max(0, Math.min(this.x, this.game.canvas.width));
+        this.y = Math.max(0, Math.min(this.y, this.game.canvas.height));
     }
 
     draw(ctx) {
@@ -121,32 +112,29 @@ export class Hero extends Entity {
         
         // Draw hero body
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius * this.powerState.scale, 0, Math.PI * 2);
+        ctx.arc(this.x, this.y, this.radius * (this.powerState?.scale || 1), 0, Math.PI * 2);
         ctx.fillStyle = this.color;
         ctx.fill();
-        
-        // Draw weapons
-        this.combat.draw(ctx);
+        ctx.strokeStyle = '#000000';
+        ctx.stroke();
+        ctx.closePath();
 
         // Draw health bar
-        const healthBarWidth = 30;
+        const healthBarWidth = this.radius * 2;
         const healthBarHeight = 4;
-        const healthPercentage = this.health / this.maxHealth;
-        
-        ctx.fillStyle = 'red';
-        ctx.fillRect(this.x - healthBarWidth/2, this.y - this.radius - 10, healthBarWidth, healthBarHeight);
-        ctx.fillStyle = 'green';
-        ctx.fillRect(this.x - healthBarWidth/2, this.y - this.radius - 10, healthBarWidth * healthPercentage, healthBarHeight);
+        const healthBarX = this.x - healthBarWidth / 2;
+        const healthBarY = this.y - this.radius - 10;
 
-        // Draw kill progress bar
-        const killBarY = this.y - this.radius - 15;
-        const killPercentage = this.kills / this.killsToNextLevel;
-        ctx.fillStyle = '#4a4a4a';
-        ctx.fillRect(this.x - healthBarWidth/2, killBarY, healthBarWidth, healthBarHeight);
-        ctx.fillStyle = '#00ffff';
-        ctx.fillRect(this.x - healthBarWidth/2, killBarY, healthBarWidth * killPercentage, healthBarHeight);
+        // Background
+        ctx.fillStyle = '#ff0000';
+        ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
 
-        // Draw level indicator
+        // Health
+        ctx.fillStyle = '#00ff00';
+        const currentHealthWidth = (this.health / this.maxHealth) * healthBarWidth;
+        ctx.fillRect(healthBarX, healthBarY, currentHealthWidth, healthBarHeight);
+
+        // Draw level
         ctx.fillStyle = '#ffffff';
         ctx.font = '12px Arial';
         ctx.textAlign = 'center';
@@ -154,7 +142,10 @@ export class Hero extends Entity {
 
         // Draw debug info
         if (this.debug) {
-            this.ai.drawDebug(ctx);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '10px Arial';
+            ctx.fillText(`HP: ${Math.round(this.health)}/${this.maxHealth}`, this.x, this.y + this.radius + 15);
+            ctx.fillText(`Speed: ${Math.round(this.speed)}`, this.x, this.y + this.radius + 25);
         }
 
         ctx.restore();
@@ -203,17 +194,36 @@ export class Hero extends Entity {
     }
 
     takeDamage(amount) {
-        if (this.dash.isInvincible) return;
+        if (this.isDead || this.dash.isInvincible) return;
+
+        this.health = Math.max(0, this.health - amount);
         
-        const damage = Number(amount) || 10;
-        this.health = Math.max(0, this.health - damage);
-        
-        if (this.debug) {
-            logDebug(`Hero took ${damage} damage, health: ${this.health}`);
+        // Create damage particles
+        if (this.game.particleSystem) {
+            const particleCount = Math.ceil(amount / 2);
+            for (let i = 0; i < particleCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 200 + 100;
+                this.game.particleSystem.createParticle(
+                    this.x, this.y,
+                    Math.cos(angle) * speed,
+                    Math.sin(angle) * speed,
+                    '#ff0000',
+                    0.5,
+                    5
+                );
+            }
         }
-        
-        if (this.health <= 0) {
-            this.game.gameOver();
+
+        if (this.health <= 0 && !this.isDead) {
+            this.isDead = true;
+            // Call game core's gameOver method instead
+            if (this.game && this.game.core) {
+                this.game.core.gameOver();
+            }
+            if (this.debug) {
+                logDebug('Hero died');
+            }
         }
     }
 

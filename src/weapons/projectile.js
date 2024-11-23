@@ -1,97 +1,112 @@
-import Entity from '../entities/entity.js';
+import { Entity } from '../entities/entity.js';
 import { GAME_CONFIG, logDebug } from '../config.js';
 
 export class Projectile extends Entity {
-    constructor(x, y, vx, vy, size, damage, lifetime, color, owner) {
-        super(x, y);
-        // World coordinates
-        this.worldX = x;
-        this.worldY = y;
-        // Screen coordinates (will be updated based on camera)
-        this.x = x;
-        this.y = y;
-        // Velocity in world space
-        this.vx = vx;
-        this.vy = vy;
-        this.size = size;
-        this.radius = size;
+    constructor(config) {
+        // Handle both object-style and parameter-style construction
+        let x, y, vx, vy, radius, color, damage, lifetime, owner;
+        
+        if (typeof config === 'object') {
+            // New style: object configuration
+            x = config.x;
+            y = config.y;
+            radius = config.size || 5;
+            color = config.color || '#ffff00';
+            damage = config.damage || 10;
+            lifetime = config.lifetime || 2;
+            owner = config.weapon?.owner; // Get the actual owner (hero) not the weapon
+            
+            // Calculate velocity from angle and speed
+            const speed = config.speed || 300;
+            const angle = config.angle || 0;
+            vx = Math.cos(angle) * speed;
+            vy = Math.sin(angle) * speed;
+        } else {
+            // Old style: individual parameters
+            [x, y, vx, vy, radius, color, damage, lifetime, owner] = arguments;
+        }
+
+        // Validate position
+        if (typeof x !== 'number' || typeof y !== 'number' || isNaN(x) || isNaN(y)) {
+            throw new Error('Invalid projectile position');
+        }
+        
+        super(x, y, radius, color);
+        this.velocityX = vx;
+        this.velocityY = vy;
         this.damage = damage;
-        this.maxLifetime = lifetime;
-        this.color = color;
-        this.owner = owner;
-        this.game = owner.game;
+        this.lifetime = lifetime;
         this.createdAt = performance.now() / 1000;
         this.isDead = false;
+        this.owner = owner;
+        this.game = owner?.game;
+        
+        if (GAME_CONFIG.debug) {
+            console.log(`Created projectile at (${x.toFixed(2)}, ${y.toFixed(2)}) with velocity (${vx.toFixed(2)}, ${vy.toFixed(2)})`);
+        }
     }
 
     update(deltaTime) {
-        const currentTime = performance.now() / 1000;
-        if (currentTime - this.createdAt > this.maxLifetime) {
+        if (this.isDead) return;
+
+        // Check lifetime
+        const now = performance.now() / 1000;
+        if (now - this.createdAt > this.lifetime) {
             this.isDead = true;
             return;
         }
 
-        // Move in world coordinates based on velocity
-        this.worldX += this.vx * deltaTime;
-        this.worldY += this.vy * deltaTime;
+        // Update position based on velocity
+        this.x += this.velocityX * deltaTime;
+        this.y += this.velocityY * deltaTime;
 
-        // Update screen coordinates based on camera
-        if (this.game.terrainSystem) {
-            const camera = this.game.terrainSystem.camera;
-            const zoom = this.game.terrainSystem.zoom;
-            this.x = (this.worldX - camera.x) * zoom;
-            this.y = (this.worldY - camera.y) * zoom;
-        }
+        // Check for collisions with enemies
+        this.checkCollisions();
 
-        // Check for collisions with enemies using world coordinates
-        if (this.game && this.game.entities) {
-            for (const enemy of this.game.entities.enemies) {
-                if (!enemy.isDead) {
-                    const dx = enemy.worldX - this.worldX;
-                    const dy = enemy.worldY - this.worldY;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-                    
-                    if (distance < enemy.radius + this.radius) {
-                        enemy.takeDamage(this.damage);
-                        this.isDead = true;
-                        if (this.onHit) {
-                            this.onHit(enemy);
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-
-        // Check collision with terrain
-        if (this.game.terrainSystem && this.game.terrainSystem.checkCollision(this)) {
+        // Check if out of bounds
+        const canvas = document.getElementById('gameCanvas');
+        if (!canvas) return;
+        
+        if (this.x < 0 || this.x > canvas.width || 
+            this.y < 0 || this.y > canvas.height) {
             this.isDead = true;
+        }
+    }
+
+    checkCollisions() {
+        if (!this.owner?.game?.gameEntities?.entities?.enemies) return;
+
+        for (const enemy of this.owner.game.gameEntities.entities.enemies) {
+            if (!enemy || enemy.isDead) continue;
+
+            const dx = this.x - enemy.x;
+            const dy = this.y - enemy.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance < enemy.radius + this.radius) {
+                enemy.takeDamage(this.damage);
+                this.isDead = true;
+                if (GAME_CONFIG.debug) {
+                    console.log(`Projectile hit enemy for ${this.damage} damage`);
+                }
+                break;
+            }
         }
     }
 
     draw(ctx) {
         if (!ctx || this.isDead) return;
-        
+
         ctx.save();
-        
-        // Draw projectile at screen coordinates
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius * this.game.terrainSystem.zoom, 0, Math.PI * 2);
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fillStyle = this.color;
         ctx.fill();
 
-        // Optional: Add a glowing effect
-        const gradient = ctx.createRadialGradient(
-            this.x, this.y, 0,
-            this.x, this.y, this.radius * 2 * this.game.terrainSystem.zoom
-        );
-        gradient.addColorStop(0, this.color);
-        gradient.addColorStop(1, 'rgba(0,0,0,0)');
-        
-        ctx.globalAlpha = 0.3;
-        ctx.fillStyle = gradient;
+        // Add glow effect
+        ctx.shadowBlur = this.radius * 2;
+        ctx.shadowColor = this.color;
         ctx.fill();
-        
         ctx.restore();
     }
 }

@@ -3,6 +3,9 @@ import { logDebug } from '../config.js';
 
 export class GameEntities {
     constructor(game) {
+        if (!game) {
+            throw new Error('Game reference is required for GameEntities initialization');
+        }
         this.game = game;
         this.initEntities();
     }
@@ -20,6 +23,14 @@ export class GameEntities {
         const heroY = this.game.canvas.height / 2;
         this.entities.hero = new Hero(heroX, heroY, this.game);
         this.entities.all.add(this.entities.hero);
+
+        // Initialize hero references after creation
+        this.entities.hero.initializeReferences();
+        this.entities.hero.initializeProperties();
+
+        if (this.game.debug) {
+            logDebug('Entities initialized with hero');
+        }
     }
 
     addEnemy(enemy) {

@@ -1,12 +1,17 @@
-import { BaseWeapon } from './base-weapon.js';
+import { Weapon } from './weapon.js';
 
-export class PulseCannon extends BaseWeapon {
+export class PulseCannon extends Weapon {
     constructor(owner) {
-        super(owner);
+        super({
+            damage: 120,
+            fireRate: 1.25, // 1/0.8 for cooldown of 0.8
+            projectileSpeed: 0, // Not used for pulse cannon
+            projectileLifetime: 0, // Not used for pulse cannon
+            projectileColor: '#40ffff'
+        });
+        this.setOwner(owner);
+        
         this.name = 'PulseCannon';
-        this.cooldown = 0.8;
-        this.lastFireTime = 0;
-        this.baseDamage = 120;
         this.chainDelay = 0.08;  // Faster jumps
         this.chainRange = 250;
         this.maxTargets = 35;
@@ -30,6 +35,7 @@ export class PulseCannon extends BaseWeapon {
         this.maxActiveChains = 3;         // Limit active chains
         
         this.activeChains = new Set();
+        this.debug = false; // Added debug property
     }
 
     update(deltaTime) {
@@ -364,17 +370,31 @@ export class PulseCannon extends BaseWeapon {
         return points;
     }
 
-    async fire(target) {
-        if (!this.owner || !this.owner.game) return;
-        
-        const currentTime = performance.now() / 1000;
-        if (currentTime - this.lastFireTime < this.cooldown) return;
-        this.lastFireTime = currentTime;
+    async fire() {
+        if (!this.owner?.game?.gameEntities?.entities?.enemies) {
+            console.warn('PulseCannon: No valid game entities found');
+            return;
+        }
 
+        const enemies = Array.from(this.owner.game.gameEntities.entities.enemies);
+        if (enemies.length === 0) {
+            if (this.debug) console.log('No enemies to target');
+            return;
+        }
+
+        // Find closest enemy
+        const target = this.findClosestEnemy(enemies);
+        if (!target) {
+            if (this.debug) console.log('No valid target found');
+            return;
+        }
+
+        // Start chain lightning from closest enemy
+        await this.startChainLightning(target, enemies);
+    }
+
+    async startChainLightning(target, enemies) {
         // Convert Set to Array before filtering
-        const enemies = Array.from(this.owner.game.entities.enemies);
-        
-        // Find nearby enemies within range
         const nearbyEnemies = enemies
             .filter(enemy => !enemy.isDead)
             .filter(enemy => {

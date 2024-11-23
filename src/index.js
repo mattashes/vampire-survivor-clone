@@ -3,7 +3,7 @@ export { GAME_CONFIG, logDebug, utils, validateGameState } from './config.js';
 
 // Core game classes
 export { default as Game } from './engine/game.js';
-export { default as Entity } from './entities/entity.js';
+export { Entity } from './entities/entity.js';
 export { Hero } from './entities/hero.js';
 export { Enemy, FastEnemy, TankEnemy, SwarmEnemy } from './entities/enemy-types.js';
 

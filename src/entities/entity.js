@@ -1,16 +1,15 @@
 import { utils, logDebug } from '../config.js';
 
-export default class Entity {
-    constructor(x, y, radius, color = '#ffffff', speed = 100, game) {
-        if (typeof x !== 'number' || typeof y !== 'number' || isNaN(x) || isNaN(y)) {
-            throw new Error(`Invalid coordinates provided to Entity: (${x}, ${y})`);
-        }
+export class Entity {
+    constructor(x, y, radius, color, speed, game) {
         this.x = x;
         this.y = y;
-        this.radius = radius || 10;
-        this.game = game;
+        this.worldX = x;
+        this.worldY = y;
+        this.radius = radius;
         this.color = color;
         this.speed = speed;
+        this.game = game;
         this.dx = 0;
         this.dy = 0;
         this.health = 100;

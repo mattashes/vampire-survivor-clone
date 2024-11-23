@@ -3,15 +3,16 @@ import { GAME_CONFIG } from '../config.js';
 
 export class MiniGun extends Weapon {
     constructor(owner) {
-        super(owner);
-        this.fireRate = 10;  
-        this.damage = 10;
-        this.projectileSpeed = 500;
-        this.projectileLifetime = 0.5;
-        this.projectileSize = 4;
-        this.projectileColor = '#ffff00';  
-        this.cooldown = 1 / this.fireRate;
-        this.lastFireTime = 0;
+        super({
+            damage: 10,
+            fireRate: 10,
+            projectileSpeed: 500,
+            projectileLifetime: 0.5,
+            projectileSize: 4,
+            projectileColor: '#ffff00',
+            spread: Math.PI / 12 // Small spread for slight inaccuracy
+        });
+        this.setOwner(owner);
         this.debug = GAME_CONFIG.debug;
     }
 

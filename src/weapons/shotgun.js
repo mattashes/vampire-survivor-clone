@@ -1,17 +1,20 @@
-import { BaseWeapon } from './base-weapon.js';
+import { Weapon } from './weapon.js';
 import { Projectile } from './projectile.js';
 
-export class Shotgun extends BaseWeapon {
+export class Shotgun extends Weapon {
     constructor(owner) {
-        super(owner);
-        this.fireRate = 1.2;  // Original fire rate restored
-        this.damage = 35;
-        this.projectileSpeed = 800;
-        this.projectileLifetime = 0.6; 
-        this.spread = Math.PI / 3; 
-        this.projectilesPerShot = 24; 
-        this.lastFireTime = 0;
-        this.cooldown = 1 / this.fireRate;
+        super({
+            damage: 35,
+            fireRate: 1.2,
+            projectileSpeed: 800,
+            projectileLifetime: 0.6,
+            projectileSize: 6,
+            projectileColor: '#ffff00',
+            spread: Math.PI / 3,
+            projectilesPerShot: 24
+        });
+        this.setOwner(owner);
+        
         this.recoilForce = 200;
         this.muzzleFlashScale = 2.5;
         
@@ -19,13 +22,11 @@ export class Shotgun extends BaseWeapon {
         this.channels = [];
         const channelCount = 8; 
         for (let i = 0; i < channelCount; i++) {
-            // Create three pellets per channel with slight variation
-            const baseAngle = (i / channelCount) - 0.5; 
-            this.channels.push(
-                baseAngle * this.spread, 
-                (baseAngle - 0.04) * this.spread, 
-                (baseAngle + 0.04) * this.spread  
-            );
+            const angle = (i / channelCount) * Math.PI * 2;
+            this.channels.push({
+                angle: angle,
+                lastFireTime: 0
+            });
         }
         
         // Lighter, more transparent smoke colors
@@ -163,128 +164,50 @@ export class Shotgun extends BaseWeapon {
         }
     }
 
-    fire(target) {
-        if (!this.owner) return;
+    fire(angle) {
+        if (!this.owner || typeof this.owner.x !== 'number' || typeof this.owner.y !== 'number') {
+            console.warn('Invalid owner position for shotgun fire');
+            return;
+        }
 
-        const baseAngle = Math.atan2(target.y - this.owner.y, target.x - this.owner.x);
-        
-        // MASSIVE muzzle flash
-        this.createMuzzleFlash(baseAngle);
+        // If no angle provided, try to find nearest enemy
+        if (typeof angle !== 'number') {
+            const enemies = this.owner.game?.gameEntities?.entities?.enemies;
+            if (!enemies || enemies.size === 0) return;
 
-        // Apply subtle recoil
-        if (this.owner.applyForce) {
-            this.owner.applyForce(
-                -Math.cos(baseAngle) * this.recoilForce,
-                -Math.sin(baseAngle) * this.recoilForce,
-                0.08
+            const target = this.findClosestEnemy(Array.from(enemies));
+            if (!target) return;
+
+            angle = Math.atan2(
+                target.y - this.owner.y,
+                target.x - this.owner.x
             );
         }
 
-        // Create pellets with channel-based distribution
+        // Create multiple projectiles with spread
         for (let i = 0; i < this.projectilesPerShot; i++) {
-            // Use channel angles for main spread pattern
-            let spreadAngle;
-            if (i < this.channels.length) {
-                // Use predefined channel
-                spreadAngle = baseAngle + this.channels[i] + (Math.random() - 0.5) * 0.1;
-            } else {
-                // Random spread for remaining pellets
-                spreadAngle = baseAngle + (Math.random() - 0.5) * this.spread;
-            }
+            // Calculate spread angle
+            const spreadAngle = angle + (Math.random() - 0.5) * this.spread;
             
-            // Randomize properties with more consistent ranges
-            const speedVariation = 0.85 + Math.random() * 0.3;
-            const speed = this.projectileSpeed * speedVariation;
-            const size = 3 + Math.random() * 4;
-            const lifetime = this.projectileLifetime * (0.8 + Math.random() * 0.4);
-            
-            const startX = this.owner.x + Math.cos(baseAngle) * 40;
-            const startY = this.owner.y + Math.sin(baseAngle) * 40;
-            const vx = Math.cos(spreadAngle) * speed;
-            const vy = Math.sin(spreadAngle) * speed;
+            try {
+                const projectile = new Projectile({
+                    x: this.owner.x,
+                    y: this.owner.y,
+                    angle: spreadAngle,
+                    speed: this.projectileSpeed,
+                    lifetime: this.projectileLifetime,
+                    size: this.projectileSize,
+                    color: this.projectileColor,
+                    damage: this.damage,
+                    weapon: this
+                });
 
-            // Create projectile with correct constructor parameters
-            const projectile = new Projectile(
-                startX,
-                startY,
-                vx,
-                vy,
-                size,
-                this.damage * (size / 4),
-                lifetime,
-                '#FFA500',
-                this
-            );
-
-            // Custom draw for pellets
-            projectile.draw = function(ctx) {
-                if (!ctx || this.isDead) return;
-
-                ctx.save();
-                
-                // Stretched pellet effect based on velocity
-                const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-                const stretch = Math.min(speed / 400, 3);
-                const angle = Math.atan2(this.vy, this.vx);
-                
-                // Draw stretched pellet
-                ctx.translate(this.x, this.y);
-                ctx.rotate(angle);
-                ctx.scale(stretch, 1);
-                
-                // Main pellet
-                ctx.fillStyle = '#8B4513';
-                ctx.beginPath();
-                ctx.arc(0, 0, this.size, 0, Math.PI * 2);
-                ctx.fill();
-                
-                // Bright front
-                ctx.fillStyle = '#FFA500';
-                ctx.beginPath();
-                ctx.arc(this.size/2, 0, this.size * 0.7, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.restore();
-
-                // Speed trail
-                if (speed > 400) {
-                    ctx.save();
-                    const trailLength = Math.min((speed - 400) / 100, 10);
-                    const gradient = ctx.createLinearGradient(
-                        this.x - Math.cos(angle) * this.size * trailLength,
-                        this.y - Math.sin(angle) * this.size * trailLength,
-                        this.x,
-                        this.y
-                    );
-                    gradient.addColorStop(0, 'rgba(255, 165, 0, 0)');
-                    gradient.addColorStop(1, 'rgba(255, 165, 0, 0.5)');
-                    
-                    ctx.strokeStyle = gradient;
-                    ctx.lineWidth = this.size;
-                    ctx.beginPath();
-                    ctx.moveTo(
-                        this.x - Math.cos(angle) * this.size * trailLength,
-                        this.y - Math.sin(angle) * this.size * trailLength
-                    );
-                    ctx.lineTo(this.x, this.y);
-                    ctx.stroke();
-                    ctx.restore();
+                if (this.owner.game?.gameEntities) {
+                    this.owner.game.gameEntities.addProjectile(projectile);
                 }
-            };
-
-            // Add hit effect
-            projectile.onHit = (target) => {
-                this.createHitEffect(projectile.x, projectile.y);
-            };
-
-            if (this.owner.game.entities && this.owner.game.entities.projectiles) {
-                this.owner.game.entities.projectiles.add(projectile);
+            } catch (error) {
+                console.error('Failed to create shotgun projectile:', error);
             }
-        }
-
-        // Screen shake
-        if (this.owner.game.camera) {
-            this.owner.game.camera.shake(10, 0.2);
         }
     }
 }

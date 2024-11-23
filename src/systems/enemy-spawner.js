@@ -1,163 +1,116 @@
-import { FastEnemy, TankEnemy, SwarmEnemy } from '../entities/enemy-types.js';
 import { GAME_CONFIG, logDebug } from '../config.js';
+import { FastEnemy, TankEnemy, SwarmEnemy } from '../entities/enemy-types.js';
 
 export class EnemySpawner {
     constructor(game) {
         this.game = game;
         this.spawnTimer = 0;
-        this.baseSpawnRate = GAME_CONFIG.enemies.baseSpawnRate;
-        this.spawnRate = this.baseSpawnRate;
-        this.waveNumber = 0;
-        this.enemiesPerWave = GAME_CONFIG.enemies.initialCount;
-        this.adaptationTimer = 0;
-        this.adaptationInterval = 5; // 5 seconds
-        this.difficultyMultiplier = 1;
-        this.isPaused = false;
         this.debug = GAME_CONFIG.debug;
-
-        // Set up enemy types with weights
-        this.enemyTypes = [
-            { type: FastEnemy, weight: 2 },
-            { type: TankEnemy, weight: 1 },
-            { type: SwarmEnemy, weight: 3 }
-        ];
-
+        
         if (this.debug) {
             logDebug('EnemySpawner initialized');
         }
     }
 
     update(deltaTime) {
-        if (!this.game.isRunning || this.game.isPaused || this.isPaused) return;
+        if (!this.game?.gameEntities?.entities) {
+            if (this.debug) logDebug('No valid game entities reference');
+            return;
+        }
 
-        // Check max enemy count
-        if (this.game.entities.enemies.size >= GAME_CONFIG.enemies.maxCount) {
-            if (this.debug) {
-                logDebug('Max enemy count reached, skipping spawn');
-            }
+        const currentEnemyCount = this.game.gameEntities.entities.enemies.size;
+
+        // Spawn initial enemies if none exist
+        if (currentEnemyCount < GAME_CONFIG.enemies.minCount) {
+            this.spawnInitialEnemies();
             return;
         }
 
         // Update spawn timer
         this.spawnTimer += deltaTime;
-        
-        // Check if it's time to spawn
-        if (this.spawnTimer >= this.spawnRate) {
-            this.spawnWave();
+        if (this.spawnTimer >= GAME_CONFIG.enemies.baseSpawnRate && 
+            currentEnemyCount < GAME_CONFIG.enemies.maxCount) {
+            this.spawnEnemy();
             this.spawnTimer = 0;
         }
+    }
 
-        // Update adaptation timer
-        this.adaptationTimer += deltaTime;
-        if (this.adaptationTimer >= this.adaptationInterval) {
-            this.updateDifficulty();
-            this.adaptationTimer = 0;
+    spawnInitialEnemies() {
+        const count = GAME_CONFIG.enemies.initialCount;
+        for (let i = 0; i < count; i++) {
+            this.spawnEnemy();
         }
-
-        // Log current state
         if (this.debug) {
-            logDebug(`Active enemies: ${this.game.entities.enemies.size}`);
-        }
-
-        // Ensure minimum number of enemies if not paused
-        if (!this.isPaused && this.game.entities.enemies.size < GAME_CONFIG.enemies.minCount) {
-            if (this.debug) {
-                logDebug('Enemy count too low, forcing spawn');
-            }
-            this.spawnWave();
+            logDebug(`Spawned ${count} initial enemies`);
         }
     }
 
-    spawnWave() {
-        const spawnCount = Math.min(
-            this.enemiesPerWave,
-            GAME_CONFIG.enemies.maxCount - this.game.entities.enemies.size
-        );
-
-        for (let i = 0; i < spawnCount; i++) {
-            const spawnPos = this.getSpawnPosition();
-            const EnemyType = this.selectEnemyType();
-            const enemy = new EnemyType(spawnPos.x, spawnPos.y, this.game);
-            
-            // Set hero as target
-            if (this.game.entities.hero) {
-                enemy.targetEntity = this.game.entities.hero;
-            }
-            
-            // Add to game
-            this.game.entities.enemies.add(enemy);
-            this.game.entities.all.add(enemy);
-
-            if (this.debug) {
-                logDebug(`Spawned ${EnemyType.name} at (${spawnPos.x}, ${spawnPos.y})`);
-            }
+    spawnEnemy() {
+        if (!this.game?.gameEntities?.entities?.hero) {
+            if (this.debug) logDebug('Cannot spawn enemy: No hero reference');
+            return;
         }
 
-        this.waveNumber++;
+        const spawnPosition = this.getRandomSpawnPosition();
+        const enemyType = this.getRandomEnemyType();
+        
+        try {
+            const enemy = new enemyType(
+                spawnPosition.x,
+                spawnPosition.y,
+                this.game
+            );
+            
+            this.game.gameEntities.addEnemy(enemy);
+            
+            if (this.debug) {
+                logDebug(`Spawned ${enemyType.name} at (${spawnPosition.x}, ${spawnPosition.y})`);
+            }
+        } catch (error) {
+            if (this.debug) {
+                logDebug(`Failed to spawn enemy: ${error.message}`);
+            }
+        }
     }
 
-    getSpawnPosition() {
-        const margin = 100; // Increased spawn margin for world coordinates
-        const zoom = this.game.terrainSystem.zoom;
-        const camera = this.game.terrainSystem.camera;
-        
-        // Get visible area in world coordinates
-        const visibleWidth = this.game.canvas.width / zoom;
-        const visibleHeight = this.game.canvas.height / zoom;
-        const worldLeft = camera.x;
-        const worldTop = camera.y;
-        const worldRight = worldLeft + visibleWidth;
-        const worldBottom = worldTop + visibleHeight;
-        
-        const side = Math.floor(Math.random() * 4); // 0: top, 1: right, 2: bottom, 3: left
+    getRandomSpawnPosition() {
+        const margin = GAME_CONFIG.enemies.spawnMargin;
+        const canvas = this.game.canvas;
+        const hero = this.game.gameEntities.entities.hero;
         
         let x, y;
-        switch(side) {
-            case 0: // top
-                x = worldLeft + Math.random() * visibleWidth;
-                y = worldTop - margin;
-                break;
-            case 1: // right
-                x = worldRight + margin;
-                y = worldTop + Math.random() * visibleHeight;
-                break;
-            case 2: // bottom
-                x = worldLeft + Math.random() * visibleWidth;
-                y = worldBottom + margin;
-                break;
-            case 3: // left
-                x = worldLeft - margin;
-                y = worldTop + Math.random() * visibleHeight;
-                break;
-        }
+        do {
+            x = margin + Math.random() * (canvas.width - margin * 2);
+            y = margin + Math.random() * (canvas.height - margin * 2);
+        } while (this.isPositionTooCloseToHero(x, y, hero));
         
         return { x, y };
     }
 
-    selectEnemyType() {
-        // Calculate total weight
-        const totalWeight = this.enemyTypes.reduce((sum, type) => sum + type.weight, 0);
-        let random = Math.random() * totalWeight;
-        
-        // Select enemy type based on weights
-        for (const enemyType of this.enemyTypes) {
-            random -= enemyType.weight;
-            if (random <= 0) {
-                return enemyType.type;
-            }
-        }
-        
-        // Fallback to first type
-        return this.enemyTypes[0].type;
+    isPositionTooCloseToHero(x, y, hero) {
+        if (!hero) return false;
+        const dx = x - hero.worldX;
+        const dy = y - hero.worldY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        return distance < 200; // Minimum spawn distance from hero
     }
 
-    updateDifficulty() {
-        // Increase difficulty based on wave number
-        this.difficultyMultiplier = 1 + (this.waveNumber * 0.1); // 10% increase per wave
-        this.spawnRate = Math.max(0.5, this.baseSpawnRate / this.difficultyMultiplier); // Faster spawns as difficulty increases
+    getRandomEnemyType() {
+        const types = [FastEnemy, TankEnemy, SwarmEnemy];
+        const weights = [
+            GAME_CONFIG.enemies.types.fast.weight,
+            GAME_CONFIG.enemies.types.tank.weight,
+            GAME_CONFIG.enemies.types.swarm.weight
+        ];
         
-        if (this.debug) {
-            logDebug(`Difficulty Update - Multiplier: ${this.difficultyMultiplier}, Base Spawn Rate: ${this.spawnRate}`);
+        const totalWeight = weights.reduce((a, b) => a + b, 0);
+        let random = Math.random() * totalWeight;
+        
+        for (let i = 0; i < types.length; i++) {
+            if (random < weights[i]) return types[i];
+            random -= weights[i];
         }
+        
+        return FastEnemy; // Default fallback
     }
 }

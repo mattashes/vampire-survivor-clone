@@ -95,6 +95,44 @@ export class GameCore {
 
     gameOver() {
         this.isRunning = false;
-        logDebug('Game Over');
+        this.stop();
+
+        // Pause all game systems
+        if (this.game.enemySpawner) {
+            this.game.enemySpawner.isPaused = true;
+        }
+
+        // Show game over UI
+        if (this.game.gameUI) {
+            this.game.gameUI.showGameOver();
+        }
+
+        if (this.debug) {
+            logDebug('Game Over');
+        }
+
+        // Save game stats
+        this.saveGameStats();
+    }
+
+    saveGameStats() {
+        const stats = {
+            kills: this.kills,
+            level: this.level,
+            gameTime: this.gameTime,
+            date: new Date().toISOString()
+        };
+
+        // Save to localStorage
+        try {
+            const highScores = JSON.parse(localStorage.getItem('highScores') || '[]');
+            highScores.push(stats);
+            highScores.sort((a, b) => b.kills - a.kills);
+            localStorage.setItem('highScores', JSON.stringify(highScores.slice(0, 10)));
+        } catch (e) {
+            if (this.debug) {
+                logDebug('Failed to save game stats:', e);
+            }
+        }
     }
 }

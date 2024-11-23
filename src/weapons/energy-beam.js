@@ -3,9 +3,17 @@ import { GAME_CONFIG } from '../config.js';
 
 export class EnergyBeam extends Weapon {
     constructor(owner) {
-        super(owner);
+        super({
+            damage: 20,
+            fireRate: 0.1, // Very slow fire rate since it's a continuous beam
+            projectileSpeed: 0, // Not used for beam
+            projectileLifetime: 0, // Not used for beam
+            projectileSize: 0, // Not used for beam
+            projectileColor: '#ff0000'
+        });
+        this.setOwner(owner);
+        
         // Beam properties
-        this.damage = 20;
         this.maxRange = 2000;
         this.baseBeamWidth = 200;
         this.maxBeamWidth = 400;
